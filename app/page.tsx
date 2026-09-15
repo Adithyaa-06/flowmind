@@ -41,8 +41,9 @@ export default function Home() {
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
   const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
   const [draftPrompt, setDraftPrompt] = useState("");
+  const [isRunning, setIsRunning] = useState(false);
+  const [runResult, setRunResult] = useState<string | null>(null);
 
-  // Load saved graph on first render
   useEffect(() => {
     const saved = localStorage.getItem("flowmind-graph");
     if (saved) {
@@ -50,7 +51,6 @@ export default function Home() {
       setNodes(savedNodes);
       setEdges(savedEdges);
 
-      // Keep the node id counter ahead of any restored nodes
       const maxId = savedNodes.reduce(
         (max: number, n: Node) => Math.max(max, Number(n.id) || 0),
         0
@@ -59,14 +59,12 @@ export default function Home() {
     }
   }, []);
 
-  // Save graph whenever it changes
   useEffect(() => {
     localStorage.setItem("flowmind-graph", JSON.stringify({ nodes, edges }));
   }, [nodes, edges]);
 
   const onConnect = useCallback(
     (connection: Connection) => {
-      // Ask which branch this edge represents
       const isYes = window.confirm(
         "Is this the YES path? (Cancel = NO path)"
       );
@@ -112,11 +110,64 @@ export default function Home() {
     setEditingNodeId(null);
   };
 
+  const runWorkflow = async () => {
+    setIsRunning(true);
+    setRunResult(null);
+    try {
+      const res = await fetch("/api/run-workflow", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nodes, edges }),
+      });
+      const data = await res.json();
+      setRunResult(
+        `Workflow triggered (event: ${data.eventId}). Check http://localhost:8288/runs for live execution.`
+      );
+    } catch (err) {
+      setRunResult(`Error: ${err}`);
+    } finally {
+      setIsRunning(false);
+    }
+  };
+
   return (
     <div style={{ width: "100vw", height: "100vh" }}>
-      <div style={{ position: "absolute", zIndex: 10, top: 12, left: 12 }}>
+      <div
+        style={{
+          position: "absolute",
+          zIndex: 10,
+          top: 12,
+          left: 12,
+          display: "flex",
+          gap: 8,
+          alignItems: "center",
+        }}
+      >
         <Button onClick={addNode}>+ Add Node</Button>
+        <Button onClick={runWorkflow} disabled={isRunning} variant="default">
+          {isRunning ? "Running..." : "▶ Run Workflow"}
+        </Button>
       </div>
+
+      {runResult && (
+        <div
+          style={{
+            position: "absolute",
+            zIndex: 10,
+            top: 60,
+            left: 12,
+            background: "white",
+            border: "1px solid #ccc",
+            borderRadius: 6,
+            padding: "8px 12px",
+            maxWidth: 400,
+            fontSize: 13,
+          }}
+        >
+          {runResult}
+        </div>
+      )}
+
       <ReactFlow
         nodes={nodes}
         edges={edges}
