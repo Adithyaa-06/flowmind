@@ -1,13 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { inngest } from "@/inngest/client";
+import { setRunStatus } from "@/lib/runStore";
+import { randomUUID } from "crypto";
 
 export async function POST(req: NextRequest) {
   const { nodes, edges } = await req.json();
+  const runId = randomUUID();
 
-  const result = await inngest.send({
+  setRunStatus(runId, { status: "running" });
+
+  await inngest.send({
     name: "workflow/run",
-    data: { nodes, edges },
+    data: { runId, nodes, edges },
   });
 
-  return NextResponse.json({ eventId: result.ids[0] });
+  return NextResponse.json({ runId });
 }
